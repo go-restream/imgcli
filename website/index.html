@@ -1,0 +1,721 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="scroll-smooth" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>imgcli — 统一的 CLI 图片处理工具</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script>
+        /* 主题切换必须在 DOM 渲染前执行，防止闪烁 */
+            var saved = localStorage.getItem('imgcli-theme');
+            if (saved) {
+                document.documentElement.setAttribute('data-theme', saved);
+            } else if (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) {
+                document.documentElement.setAttribute('data-theme', 'light');
+            }
+        })();
+    </script>
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        heading: ['Space Grotesk', 'sans-serif'],
+                        body: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        /* ========== Theme Variables ========== */
+        [data-theme="dark"] {
+            --bg: #08080d;
+            --bg-card: #0b0b12;
+            --bg-code: #07070c;
+            --bg-nav: rgba(8,8,13,0.88);
+            --text-1: #e5e5e5;
+            --text-2: #a3a3a3;
+            --text-3: #525252;
+            --text-4: #2a2a35;
+            --accent: #22d3ee;
+            --accent-rgb: 34,211,238;
+            --border: rgba(34,211,238,0.1);
+            --border-h: rgba(34,211,238,0.28);
+            --dot: rgba(34,211,238,0.05);
+            --glow: 0 0 60px rgba(34,211,238,0.25), 0 0 120px rgba(34,211,238,0.08);
+            --hero-glow: radial-gradient(ellipse 60% 40% at 30% 10%, rgba(34,211,238,0.07) 0%, transparent 70%);
+            --grad-line: linear-gradient(90deg, transparent, rgba(34,211,238,0.25), transparent);
+            --ck: #22d3ee; --cs: #34d399; --cn: #fbbf24; --cc: #3a3a50; --cp: #a78bfa; --cok: rgba(52,211,153,0.5);
+            --term-hdr: rgba(34,211,238,0.02);
+            --badge-accent-bg: rgba(34,211,238,0.1);
+            --badge-accent-border: rgba(34,211,238,0.2);
+            --badge-muted-bg: rgba(34,211,238,0.04);
+            --pill-bg: rgba(34,211,238,0.04);
+            --icon-box-bg: rgba(34,211,238,0.08);
+            --btn-secondary-bg: rgba(34,211,238,0.06);
+            --card-hover-bg: rgba(34,211,238,0.025);
+        }
+        [data-theme="light"] {
+            --bg: #f8f9fa;
+            --bg-card: #ffffff;
+            --bg-code: #f0f1f3;
+            --bg-nav: rgba(248,249,250,0.88);
+            --text-1: #0f172a;
+            --text-2: #475569;
+            --text-3: #94a3b8;
+            --text-4: #cbd5e1;
+            --accent: #0891b2;
+            --accent-rgb: 8,145,178;
+            --border: #e2e8f0;
+            --border-h: rgba(8,145,178,0.3);
+            --dot: rgba(8,145,178,0.05);
+            --glow: none;
+            --hero-glow: radial-gradient(ellipse 60% 40% at 30% 10%, rgba(8,145,178,0.04) 0%, transparent 70%);
+            --grad-line: linear-gradient(90deg, transparent, rgba(8,145,178,0.12), transparent);
+            --ck: #0891b2; --cs: #059669; --cn: #d97706; --cc: #94a3b8; --cp: #7c3aed; --cok: rgba(5,150,105,0.6);
+            --term-hdr: rgba(8,145,178,0.03);
+            --badge-accent-bg: rgba(8,145,178,0.08);
+            --badge-accent-border: rgba(8,145,178,0.18);
+            --badge-muted-bg: #eef0f2;
+            --pill-bg: #eef0f2;
+            --icon-box-bg: rgba(8,145,178,0.08);
+            --btn-secondary-bg: #eef0f2;
+            --card-hover-bg: rgba(8,145,178,0.02);
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text-1);
+        }
+        ::selection { background: var(--accent); color: #000; }
+
+        /* 只对可见元素加过渡，排除 * 通配符 */
+        body, nav, section, footer, a, button, span, p, h1, h2, h3, pre, code, div, input, textarea {
+            transition: background-color 0.3s ease, border-color 0.3s ease, color 0.3s ease, box-shadow 0.3s ease;
+        }
+
+        .dot-grid {
+            background-image: radial-gradient(circle, var(--dot) 1px, transparent 1px);
+            background-size: 20px 20px;
+        }
+        .glow-text { text-shadow: var(--glow); }
+        .t-border { border: 1px solid var(--border); }
+        .gradient-line { background: var(--grad-line); height: 1px; }
+
+        .card-hover:hover {
+            border-color: var(--border-h) !important;
+            background: var(--card-hover-bg) !important;
+        }
+        [data-theme="dark"] .card-hover:hover { transform: translateY(-1px); }
+
+        /* Code syntax */
+        .ck { color: var(--ck); } .cs { color: var(--cs); } .cn { color: var(--cn); }
+        .cc { color: var(--cc); } .cp { color: var(--cp); } .cok { color: var(--cok); }
+
+        /* Typing cursor */
+        .typing-cursor::after {
+            content: '▊'; animation: blink 1s step-end infinite;
+            color: var(--accent); font-size: 0.85em;
+        }
+        @keyframes blink { 50% { opacity: 0; } }
+        @keyframes fadeUp { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        .fade-up { animation: fadeUp 0.4s ease-out forwards; }
+        .toast-enter { animation: fadeUp 0.25s ease-out; }
+
+        /* Theme toggle button */
+        .theme-toggle {
+            width: 32px; height: 32px; display: flex; align-items: center; justify-content: center;
+            border-radius: 8px; border: 1px solid var(--border); background: transparent;
+            cursor: pointer; color: var(--text-3); outline: none;
+        }
+        .theme-toggle:hover { border-color: var(--accent); color: var(--accent); background: rgba(var(--accent-rgb),0.06); }
+        .theme-toggle:focus-visible { box-shadow: 0 0 0 2px var(--accent); }
+        .theme-toggle .ico-sun, .theme-toggle .ico-moon { display: none; }
+        [data-theme="dark"] .theme-toggle .ico-moon { display: block; }
+        [data-theme="light"] .theme-toggle .ico-sun { display: block; }
+
+        /* Reusable semantic classes */
+        .c-bg { background: var(--bg-card); }
+        .c-code-bg { background: var(--bg-code); }
+        .c-term-hdr { background: var(--term-hdr); border-bottom: 1px solid var(--border); }
+        .c-text-1 { color: var(--text-1); }
+        .c-text-2 { color: var(--text-2); }
+        .c-text-3 { color: var(--text-3); }
+        .c-text-4 { color: var(--text-4); }
+        .c-accent { color: var(--accent); }
+        .c-icon { color: var(--accent); }
+        .c-border { border-color: var(--border); }
+        .c-badge-accent { color: var(--accent); background: var(--badge-accent-bg); border: 1px solid var(--badge-accent-border); }
+        .c-badge-muted { color: var(--text-3); background: var(--badge-muted-bg); border: 1px solid var(--border); }
+        .c-pill { color: var(--text-2); background: var(--pill-bg); border: 1px solid var(--border); }
+        .c-icon-box { background: var(--icon-box-bg); }
+        .c-btn-secondary { background: var(--btn-secondary-bg); color: var(--text-1); border: 1px solid var(--border); }
+        .c-btn-secondary:hover { border-color: var(--border-h); }
+        .c-nav-link { color: var(--text-3); }
+        .c-nav-link:hover { color: var(--accent); }
+
+        ::-webkit-scrollbar { width: 5px; }
+        ::-webkit-scrollbar-track { background: var(--bg); }
+        ::-webkit-scrollbar-thumb { background: var(--text-4); border-radius: 3px; }
+        ::-webkit-scrollbar-thumb:hover { background: var(--accent); }
+    </style>
+</head>
+<body class="dot-grid min-h-screen">
+
+    <!-- ===== NAV ===== -->
+    <nav class="fixed top-0 w-full z-50 c-border" style="border-top:none;border-left:none;border-right:none;background:var(--bg-nav);backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px);">
+        <div class="max-w-6xl mx-auto px-5 h-12 flex items-center justify-between">
+            <div class="flex items-center gap-6">
+                <a href="#" class="font-heading font-bold text-base tracking-tight flex items-center gap-1.5 c-text-1">
+                    <span class="c-accent">$</span> imgcli
+                </a>
+                <div class="hidden md:flex items-center gap-4 text-[13px]">
+                    <a href="#features" class="c-nav-link">功能</a>
+                    <a href="#agent" class="c-nav-link">Agent 集成</a>
+                    <a href="#examples" class="c-nav-link">示例</a>
+                    <a href="#quickstart" class="c-nav-link">快速开始</a>
+                </div>
+            </div>
+            <div class="flex items-center gap-2">
+                <button type="button" class="theme-toggle" id="themeToggle" aria-label="切换主题">
+                    <svg class="ico-sun w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                    <svg class="ico-moon w-4 h-4" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+                </button>
+                <a href="https://github.com/go-restream/imgcli#readme" class="hidden sm:flex items-center gap-1 text-[13px] c-nav-link">
+                    <i data-lucide="book-open" class="w-3.5 h-3.5"></i> 文档
+                </a>
+                <a href="https://github.com/go-restream/imgcli" class="flex items-center gap-1.5 px-2.5 py-1.5 text-[13px] font-medium rounded-md" style="background:var(--accent);color:var(--bg);">
+                    <i data-lucide="github" class="w-3.5 h-3.5"></i> GitHub
+                </a>
+            </div>
+        </div>
+    </nav>
+
+    <!-- ===== HERO ===== -->
+    <section class="pt-20 pb-10 px-5" style="background:var(--hero-glow)">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex flex-wrap items-center gap-2 mb-5">
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-medium c-badge-accent rounded-full">
+                    <i data-lucide="zap" class="w-2.5 h-2.5"></i> Open Source
+                </span>
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-medium c-badge-muted rounded-full">
+                    <i data-lucide="bot" class="w-2.5 h-2.5"></i> AI Agent Ready
+                </span>
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-medium c-badge-muted rounded-full">APACHE2.0</span>
+                <span class="inline-flex items-center gap-1 px-2 py-0.5 text-[11px] font-mono font-medium c-badge-muted rounded-full">v1.0</span>
+            </div>
+
+            <h1 class="font-heading font-bold text-5xl sm:text-7xl lg:text-[5.5rem] tracking-[-0.04em] leading-[0.88] mb-3 glow-text c-text-1">
+                imgcli
+            </h1>
+            <p class="font-heading text-base sm:text-lg lg:text-xl font-semibold tracking-tight mb-4 c-text-2">
+                统一的 CLI 图片处理工具
+            </p>
+            <p class="text-[13px] max-w-xl leading-relaxed mb-7 c-text-3">
+                格式转换 · 缩放 · 增强 · 标注掩码 · 数据增强 · 裁剪 · OCR · 去背景 · 对象擦除 · 超分辨率 · 图像分割<br>
+                <span class="c-text-4">基于 Rust 构建，集成 ONNX AI 推理，为 AI Agent 提供标准化图片处理接口</span>
+            </p>
+
+            <div class="c-bg t-border rounded-lg overflow-hidden mb-7 max-w-xl">
+                <div class="flex items-center gap-2 px-3.5 py-2 c-term-hdr">
+                    <div class="flex gap-1.5">
+                        <div class="w-[9px] h-[9px] rounded-full bg-[#ff5f57]"></div>
+                        <div class="w-[9px] h-[9px] rounded-full bg-[#febc2e]"></div>
+                        <div class="w-[9px] h-[9px] rounded-full bg-[#28c840]"></div>
+                    </div>
+                    <span class="ml-2 text-[10px] font-mono c-text-4">zsh — imgcli</span>
+                </div>
+                <div class="p-3.5 font-mono text-[13px]">
+                    <div class="text-[11px] c-text-4">~/projects</div>
+                    <div class="mt-0.5"><span class="c-accent">$ </span><span id="typed-text" class="c-text-1"></span><span class="typing-cursor"></span></div>
+                    <div id="typed-result" class="mt-1.5 text-[11px] c-text-3" style="display:none;">✓ processed → rmbg_output/photo.png</div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2.5 mb-7">
+                <a href="#quickstart" class="inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-semibold rounded-lg" style="background:var(--accent);color:var(--bg);">
+                    <i data-lucide="terminal" class="w-3.5 h-3.5"></i> 快速开始
+                </a>
+                <a href="#agent" class="c-btn-secondary inline-flex items-center gap-1.5 px-4 py-2 text-[13px] font-medium rounded-lg">
+                    <i data-lucide="bot" class="w-3.5 h-3.5"></i> Agent 集成
+                </a>
+                <a href="https://github.com/go-restream/imgcli/blob/main/docs/CLI_GUIDE.md" class="inline-flex items-center gap-1 px-4 py-2 text-[13px] c-nav-link">
+                    CLI 指南 <i data-lucide="arrow-right" class="w-3 h-3"></i>
+                </a>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-x-7 gap-y-2 pt-5" style="border-top:1px solid var(--border)">
+                <div><span class="text-lg font-heading font-bold c-text-1">11</span><span class="text-[11px] c-text-3 ml-1.5">核心功能</span></div>
+                <div><span class="text-lg font-heading font-bold c-text-1">4</span><span class="text-[11px] c-text-3 ml-1.5">基础格式</span></div>
+                <div><span class="text-lg font-heading font-bold c-text-1">ONNX</span><span class="text-[11px] c-text-3 ml-1.5">AI 推理引擎</span></div>
+                <div><span class="text-lg font-heading font-bold c-text-1">5</span><span class="text-[11px] c-text-3 ml-1.5">AI 模型集成</span></div>
+                <div><span class="text-lg font-heading font-bold c-text-1">JSON</span><span class="text-[11px] c-text-3 ml-1.5">结构化输出</span></div>
+            </div>
+        </div>
+    </section>
+
+    <div class="gradient-line max-w-6xl mx-auto"></div>
+
+    <!-- ===== AGENT SKILL ===== -->
+    <section id="agent" class="py-10 px-5">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="w-[3px] h-4 rounded-full" style="background:var(--accent)"></div>
+                <span class="text-[11px] font-mono font-medium uppercase tracking-widest c-accent">AI Agent Skill</span>
+            </div>
+            <h2 class="font-heading font-bold text-xl sm:text-2xl tracking-tight mb-2 c-text-1">为 AI Agent 提供专用图片处理 Skill</h2>
+            <p class="text-[13px] max-w-2xl mb-6 leading-relaxed c-text-3">将 imgcli 的全部 11 个命令封装为 Agent Skill，安装后 Agent 自动识别图片处理意图并调用正确的命令。无需手写 Function Calling 定义，一条指令即可安装。</p>
+
+            <div class="flex flex-col lg:flex-row gap-3 mb-6">
+                <!-- Skill 文件结构 -->
+                <div class="flex-1 c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-2 c-term-hdr">
+                        <div class="flex items-center gap-1.5">
+                            <i data-lucide="folder-tree" class="w-3 h-3 c-icon"></i>
+                            <span class="text-[10px] font-mono c-text-3">Skill 文件结构</span>
+                        </div>
+                    </div>
+                    <div class="p-3.5 font-mono text-[11px] leading-[1.7]">
+                        <span class="cn">imgcli/</span><br>
+                        <span class="pl-3">├── <span class="c-accent">SKILL.md</span>              <span class="cc"># 技能定义 & 触发规则</span></span><br>
+                        <span class="pl-3">└── <span class="cn">references/</span></span><br>
+                        <span class="pl-3">    └── <span class="c-accent">commands.md</span>  <span class="cc"># 完整命令参数文档</span></span>
+                    </div>
+                </div>
+
+                <!-- SKILL.md 摘要 -->
+                <div class="flex-1 c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-2 c-term-hdr">
+                        <div class="flex items-center gap-1.5">
+                            <i data-lucide="file-code" class="w-3 h-3 c-icon"></i>
+                            <span class="text-[10px] font-mono c-text-3">SKILL.md 触发规则</span>
+                        </div>
+                        <button type="button" onclick="copyEl('skill-trigger')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <pre id="skill-trigger" class="p-3.5 font-mono text-[11px] overflow-x-auto leading-[1.7] c-text-2"><code><span class="cc">---</span>
+<span class="ck">name</span>: <span class="cs">imgcli</span>
+<span class="ck">description</span>: <span class="cs">"Unified CLI image processing
+  tool. Covers format conversion, resize,
+  enhance, LabelMe mask generation, data
+  augmentation, grid crop, OCR (PaddleOCR
+  V5), background removal (BEN2), object
+  erasing (MIGAN), AI upscaling (Real-ESRGAN),
+  and segmentation (SAM3). TRIGGER when:
+  user asks to convert, resize, crop, enhance,
+  augment, erase, upscale, or process
+  images via CLI..."</span>
+<span class="cc">---</span></code></pre>
+                </div>
+            </div>
+
+            <!-- 一键安装 -->
+            <div class="c-bg t-border rounded-lg overflow-hidden mb-6">
+                <div class="flex items-center justify-between px-3.5 py-2 c-term-hdr">
+                    <div class="flex items-center gap-1.5">
+                        <i data-lucide="terminal" class="w-3 h-3 c-icon"></i>
+                        <span class="text-[10px] font-mono c-text-3">一键安装 — 在 Claude Code 中执行</span>
+                    </div>
+                    <button type="button" onclick="copyEl('skill-install')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                </div>
+                <pre id="skill-install" class="p-3.5 font-mono text-[11px] overflow-x-auto leading-[1.7] c-text-2"><code><span class="cc"># 在 Claude Code 对话中发送以下指令，Agent 将自动克隆、解压并安装 Skill</span>
+<span class="c-accent">></span> <span class="cok">为我安装 https://github.com/go-restream/imgcli 的 imgcli 命令技能</span></code></pre>
+            </div>
+
+            <!-- Agent 调用示例 -->
+            <div class="c-bg t-border rounded-lg overflow-hidden mb-6">
+                <div class="flex items-center px-3.5 py-2 c-term-hdr">
+                    <i data-lucide="message-square" class="w-3 h-3 mr-1.5 c-icon"></i>
+                    <span class="text-[10px] font-mono c-text-3">安装后的 Agent 调用示例</span>
+                </div>
+                <div class="p-3.5 font-mono text-[11px] leading-[1.7]">
+                    <div class="mb-2.5">
+                        <span class="cp">User:</span> <span class="c-text-2">帮我把这批产品图去掉背景</span>
+                    </div>
+                    <div class="mb-2.5 pl-3" style="border-left:2px solid rgba(var(--accent-rgb),0.2)">
+                        <span class="cc">/* Agent 自动识别意图 → 触发 imgcli Skill → 执行 */</span><br>
+                        <span class="c-accent">$</span> imgcli rmbg products/ --provider coreml
+                    </div>
+                    <div class="pl-3" style="border-left:2px solid rgba(16,185,129,0.3)">
+                        <span style="color:var(--cs)">✓</span> <span class="c-text-3">已处理 12 张，输出至 products/rmbg_output/</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="flex flex-wrap items-center gap-2">
+                <span class="text-[11px] c-text-4">基于：</span>
+                <span class="c-pill px-2 py-0.5 text-[11px] font-mono rounded">Agent Skill</span>
+                <span class="c-pill px-2 py-0.5 text-[11px] font-mono rounded">YAML Frontmatter</span>
+                <span class="c-pill px-2 py-0.5 text-[11px] font-mono rounded">Progressive Disclosure</span>
+            </div>
+        </div>
+    </section>
+
+    <div class="gradient-line max-w-6xl mx-auto"></div>
+
+    <!-- ===== FEATURES ===== -->
+    <section id="features" class="py-10 px-5">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="w-[3px] h-4 rounded-full" style="background:var(--accent)"></div>
+                <span class="text-[11px] font-mono font-medium uppercase tracking-widest c-accent">Core Features</span>
+            </div>
+            <h2 class="font-heading font-bold text-xl sm:text-2xl tracking-tight mb-5 c-text-1">11 大核心能力</h2>
+            <div class="grid grid-cols-2 lg:grid-cols-4 gap-2.5">
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="refresh-cw" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">格式转换</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">JPG / PNG / BMP 格式互转，支持单文件与批量处理</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="maximize-2" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">缩放</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">Lanczos3 重采样算法，精准缩放到指定分辨率</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="sparkles" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">增强</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">调整对比度、亮度，Unsharp Mask 锐化，感知亮度检测</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="layers" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">标注掩码</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">从 LabelMe JSON 标注生成二值掩码图片</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="shuffle" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">数据增强</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">翻转、旋转、色彩抖动、仿射变换，批量扩充训练集</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="layout-grid" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">裁剪</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">网格切片裁剪，自动步长计算，支持重叠覆盖</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="scan-text" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">OCR 文字识别</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">PaddleOCR V5 驱动，支持 JSON 结构化输出</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="image-off" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">AI 去背景</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">BEN2 模型驱动，支持 CPU / CUDA / CoreML 推理</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="paintbrush" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">对象擦除</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">MIGAN 模型驱动，掩码指定区域，AI 自动修复背景</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="scaling" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">AI 超分辨率</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">Real-ESRGAN 驱动，2x/4x 放大，分块推理适配显存</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-3.5 card-hover">
+                    <div class="w-7 h-7 rounded-md c-icon-box flex items-center justify-center mb-2.5"><i data-lucide="scissors" class="w-3.5 h-3.5 c-icon"></i></div>
+                    <h3 class="font-heading font-semibold text-[13px] mb-0.5 c-text-1">图像分割</h3>
+                    <p class="text-[11px] leading-relaxed c-text-3">SAM3 模型驱动，文本/框提示，自动导出 LabelMe 标注</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="gradient-line max-w-6xl mx-auto"></div>
+
+    <!-- ===== CLI EXAMPLES ===== -->
+    <section id="examples" class="py-10 px-5">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="w-[3px] h-4 rounded-full" style="background:var(--accent)"></div>
+                <span class="text-[11px] font-mono font-medium uppercase tracking-widest c-accent">CLI Examples</span>
+            </div>
+            <h2 class="font-heading font-bold text-xl sm:text-2xl tracking-tight mb-5 c-text-1">命令行示例</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">convert — 格式转换</span>
+                        <button type="button" onclick="copyCmd('imgcli convert photo.png -f jpg')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli convert photo.png -f jpg<br>
+                        <span class="c-text-4">→ convert_output/photo.jpg ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">resize — 缩放</span>
+                        <button type="button" onclick="copyCmd('imgcli resize photo.jpg -W 800 -H 600')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli resize photo.jpg -W 800 -H 600<br>
+                        <span class="c-text-4">→ resize_output/photo.jpg (800×600) ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">enhance — 增强</span>
+                        <button type="button" onclick="copyCmd('imgcli enhance photo.jpg --contrast 1.5 --sharpen')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli enhance photo.jpg --contrast 1.5 --sharpen<br>
+                        <span class="c-text-4">→ enhance_output/photo.jpg ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">mask — 标注掩码</span>
+                        <button type="button" onclick="copyCmd('imgcli mask annotation.json --label cat')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli mask annotation.json --label cat<br>
+                        <span class="c-text-4">→ mask_output/annotation.png ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">augment — 数据增强</span>
+                        <button type="button" onclick="copyCmd('imgcli augment photo.jpg -a hflip vflip -n 3')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli augment photo.jpg -a hflip vflip -n 3<br>
+                        <span class="c-text-4">→ augment_output/ (6 images) ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">crop — 裁剪</span>
+                        <button type="button" onclick="copyCmd('imgcli crop photo.jpg -W 512 -H 512')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli crop photo.jpg -W 512 -H 512<br>
+                        <span class="c-text-4">→ crop_output/ (9 tiles) ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">ocr — 文字识别</span>
+                        <button type="button" onclick="copyCmd('imgcli ocr screenshot.png -f json')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli ocr screenshot.png -f json<br>
+                        <span class="c-text-4">→ [{"text": "Hello", "conf": 0.97}, ...] ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">rmbg — AI 去背景</span>
+                        <button type="button" onclick="copyCmd('imgcli rmbg photo.jpg')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli rmbg photo.jpg<br>
+                        <span class="c-text-4">→ rmbg_output/photo.png (RGBA) ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">seg — 图像分割</span>
+                        <button type="button" onclick="copyCmd('imgcli seg photo.jpg -t &quot;person&quot; --labelme')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli seg photo.jpg -t "person" --labelme<br>
+                        <span class="c-text-4">→ seg_output/photo_mask.png + .json ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">erase — 对象擦除</span>
+                        <button type="button" onclick="copyCmd('imgcli erase photo.jpg --mask mask.png')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli erase photo.jpg --mask mask.png<br>
+                        <span class="c-text-4">→ erase_output/photo_erase.png ✓</span>
+                    </div>
+                </div>
+                <div class="c-bg t-border rounded-lg overflow-hidden">
+                    <div class="flex items-center justify-between px-3.5 py-1.5 c-term-hdr">
+                        <span class="text-[10px] font-mono c-text-3">upscale — AI 超分辨率</span>
+                        <button type="button" onclick="copyCmd('imgcli upscale photo.jpg -m RealESR_Gx4')" class="c-nav-link"><i data-lucide="copy" class="w-3 h-3"></i></button>
+                    </div>
+                    <div class="p-3 font-mono text-[11.5px] leading-relaxed">
+                        <span class="c-accent">$</span> imgcli upscale photo.jpg -m RealESR_Gx4<br>
+                        <span class="c-text-4">→ upscale_output/photo_4x.png ✓</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="gradient-line max-w-6xl mx-auto"></div>
+
+    <!-- ===== QUICK START ===== -->
+    <section id="quickstart" class="py-10 px-5">
+        <div class="max-w-6xl mx-auto">
+            <div class="flex items-center gap-2 mb-2">
+                <div class="w-[3px] h-4 rounded-full" style="background:var(--accent)"></div>
+                <span class="text-[11px] font-mono font-medium uppercase tracking-widest c-accent">Quick Start</span>
+            </div>
+            <h2 class="font-heading font-bold text-xl sm:text-2xl tracking-tight mb-5 c-text-1">快速开始</h2>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-2.5">
+                <div class="c-bg t-border rounded-lg p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="w-5 h-5 rounded c-icon-box flex items-center justify-center text-[10px] font-heading font-bold c-accent">1</span>
+                        <span class="text-[13px] font-heading font-semibold c-text-1">安装</span>
+                    </div>
+                    <div class="c-code-bg rounded-md p-2.5 font-mono text-[11px] leading-[1.7] mb-2">
+                        <span class="cc"># 前置条件：Rust 工具链 + C++ 编译器</span><br>
+                        <span class="c-accent">$</span> git clone https://github.com/go-restream/imgcli.git<br>
+                        <span class="c-accent">$</span> cd imgcli<br>
+                        <span class="c-accent">$</span> cargo install --path .
+                    </div>
+                    <p class="text-[10px] c-text-4">支持 macOS · Linux · Windows</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="w-5 h-5 rounded c-icon-box flex items-center justify-center text-[10px] font-heading font-bold c-accent">2</span>
+                        <span class="text-[13px] font-heading font-semibold c-text-1">使用</span>
+                    </div>
+                    <div class="c-code-bg rounded-md p-2.5 font-mono text-[11px] leading-[1.7] mb-2">
+                        <span class="c-accent">$</span> imgcli rmbg photo.jpg<br>
+                        <span class="cok">✓ rmbg_output/photo.png</span><br><br>
+                        <span class="c-accent">$</span> imgcli convert ./images/ -f png<br>
+                        <span class="cok">✓ convert_output/ (24 files)</span>
+                    </div>
+                    <p class="text-[10px] c-text-4">单文件或批量处理</p>
+                </div>
+                <div class="c-bg t-border rounded-lg p-4">
+                    <div class="flex items-center gap-2 mb-3">
+                        <span class="w-5 h-5 rounded c-icon-box flex items-center justify-center text-[10px] font-heading font-bold c-accent">3</span>
+                        <span class="text-[13px] font-heading font-semibold c-text-1">AI 模型</span>
+                    </div>
+                    <div class="c-code-bg rounded-md p-2.5 font-mono text-[11px] leading-[1.7] mb-2">
+                        <span class="cc"># ocr / rmbg / erase / upscale / seg 需额外模型</span><br>
+                        <span class="cc"># 下载到 ~/.imgcli/models/</span><br><br>
+                        <span class="c-accent">$</span> imgcli erase photo.jpg --mask mask.png<br>
+                        <span class="cok">✓ MIGAN model loaded</span>
+                    </div>
+                    <p class="text-[10px] c-text-4">支持 auto / cpu / cuda / coreml</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <div class="gradient-line max-w-6xl mx-auto"></div>
+
+    <!-- ===== FOOTER ===== -->
+    <footer class="py-6 px-5">
+        <div class="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div class="flex items-center gap-3">
+                <span class="font-heading font-bold text-[13px] c-text-1"><span class="c-accent">$</span> imgcli</span>
+                <span class="text-[11px] c-text-4">Open Source · Apache 2.0 License</span>
+            </div>
+            <div class="flex items-center gap-3.5 text-[11px]">
+                <a href="https://github.com/go-restream/imgcli" class="c-nav-link">GitHub</a>
+                <a href="https://github.com/go-restream/imgcli#readme" class="c-nav-link">文档</a>
+                <a href="https://github.com/go-restream/imgcli/blob/main/docs/CLI_GUIDE.md" class="c-nav-link">CLI 指南</a>
+                <a href="https://github.com/go-restream/imgcli/issues" class="c-nav-link">Issue</a>
+                <a href="https://github.com/go-restream/imgcli/releases" class="c-nav-link">Changelog</a>
+            </div>
+        </div>
+    </footer>
+
+    <!-- ===== TOAST ===== -->
+    <div id="toast-container" class="fixed bottom-5 right-5 z-[100] flex flex-col gap-2"></div>
+
+    <!-- ===== JS — 放在最末尾，确保 DOM 已就绪 ===== -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <script>
+    (function() {
+        // 1. Lucide 图标初始化
+        if (typeof lucide !== 'undefined') {
+            lucide.createIcons();
+        }
+
+        // 2. 主题切换
+        var toggleBtn = document.getElementById('themeToggle');
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                var html = document.documentElement;
+                var current = html.getAttribute('data-theme');
+                var next = (current === 'dark') ? 'light' : 'dark';
+                html.setAttribute('data-theme', next);
+                try { localStorage.setItem('imgcli-theme', next); } catch(e) {}
+            });
+        }
+
+        // 3. 打字机效果
+        var typedEl = document.getElementById('typed-text');
+        var resultEl = document.getElementById('typed-result');
+        if (typedEl && resultEl) {
+            var cmd = 'imgcli rmbg photo.jpg';
+            var idx = 0;
+
+            function typeNext() {
+                if (idx < cmd.length) {
+                    typedEl.textContent += cmd.charAt(idx);
+                    idx++;
+                    setTimeout(typeNext, 30 + Math.random() * 30);
+                } else {
+                    // 打字完成，显示结果
+                    setTimeout(function() {
+                        resultEl.style.display = 'block';
+                        resultEl.classList.add('fade-up');
+                    }, 400);
+                }
+            }
+
+            // 延迟启动，确保页面渲染完毕
+            setTimeout(typeNext, 800);
+        }
+
+        // 4. 复制功能
+        window.copyCmd = function(text) {
+            if (navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(text).then(function() {
+                    showToast('✓ 已复制');
+                });
+            } else {
+                // fallback
+                var ta = document.createElement('textarea');
+                ta.value = text;
+                ta.style.position = 'fixed';
+                ta.style.opacity = '0';
+                document.body.appendChild(ta);
+                ta.select();
+                document.execCommand('copy');
+                document.body.removeChild(ta);
+                showToast('✓ 已复制');
+            }
+        };
+
+        window.copyEl = function(id) {
+            var el = document.getElementById(id);
+            if (el) {
+                window.copyCmd(el.innerText || el.textContent);
+            }
+        };
+
+        // 5. Toast 提示
+        function showToast(msg) {
+            var container = document.getElementById('toast-container');
+            if (!container) return;
+            var toast = document.createElement('div');
+            toast.className = 'toast-enter';
+            toast.style.cssText = 'padding:6px 12px;border-radius:6px;font-size:11px;font-family:JetBrains Mono,monospace;background:var(--bg-card);border:1px solid var(--border);color:var(--text-2);backdrop-filter:blur(12px);';
+            toast.textContent = msg;
+            container.appendChild(toast);
+            setTimeout(function() {
+                toast.style.opacity = '0';
+                toast.style.transition = 'opacity 0.3s';
+                setTimeout(function() {
+                    if (toast.parentNode) toast.parentNode.removeChild(toast);
+                }, 350);
+            }, 1800);
+        }
+    })();
+    </script>
+</body>
+</html>
